@@ -1,17 +1,19 @@
-import { checkBotId } from "botid/server";
 import { geolocation, ipAddress } from "@vercel/functions";
 import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
   generateId,
+  generateText,
   stepCountIs,
   streamText,
 } from "ai";
+import { checkBotId } from "botid/server";
 import { after } from "next/server";
 import { createResumableStreamContext } from "resumable-stream";
 import { auth, type UserType } from "@/app/(auth)/auth";
 import { entitlementsByUserType } from "@/lib/ai/entitlements";
+import { QUAD_MODE_MODEL_IDS } from "@/lib/ai/models";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModel } from "@/lib/ai/providers";
 import { createDocument } from "@/lib/ai/tools/create-document";
@@ -33,7 +35,11 @@ import {
 import type { DBMessage } from "@/lib/db/schema";
 import { ChatbotError } from "@/lib/errors";
 import { checkIpRateLimit } from "@/lib/ratelimit";
-import type { ChatMessage } from "@/lib/types";
+import type {
+  ChatMessage,
+  QuadResponseVariant,
+  QuadVariantId,
+} from "@/lib/types";
 import { convertToUIMessages, generateUUID } from "@/lib/utils";
 import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
@@ -50,6 +56,14 @@ function getStreamContext() {
 
 export { getStreamContext };
 
+function normalizeQuadError(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return "Generation failed";
+}
+
 export async function POST(request: Request) {
   let requestBody: PostRequestBody;
 
@@ -61,8 +75,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { id, message, messages, selectedChatModel, selectedVisibilityType } =
-      requestBody;
+    const {
+      id,
+      message,
+      messages,
+      selectedChatModel,
+      selectedVisibilityType,
+      responseMode,
+    } = requestBody;
 
     const [botResult, session] = await Promise.all([checkBotId(), auth()]);
 
@@ -88,6 +108,8 @@ export async function POST(request: Request) {
     }
 
     const isToolApprovalFlow = Boolean(messages);
+    const effectiveResponseMode =
+      isToolApprovalFlow || responseMode === "single" ? "single" : "quad";
 
     const chat = await getChatById({ id });
     let messagesFromDb: DBMessage[] = [];
@@ -138,11 +160,119 @@ export async function POST(request: Request) {
       });
     }
 
+    const modelMessages = await convertToModelMessages(uiMessages);
+
+    if (effectiveResponseMode === "quad") {
+      const variantIds: QuadVariantId[] = ["A", "B", "C", "D"];
+
+      const variantSettledResults = await Promise.allSettled(
+        QUAD_MODE_MODEL_IDS.map(async (modelId, index) => {
+          const startTime = Date.now();
+          const result = await generateText({
+            model: getLanguageModel(modelId),
+            system: systemPrompt({ selectedChatModel: modelId, requestHints }),
+            messages: modelMessages,
+            experimental_telemetry: {
+              isEnabled: isProductionEnvironment,
+              functionId: `generate-text-quad-${index}`,
+            },
+          });
+
+          return {
+            id: variantIds[index],
+            modelId,
+            text: result.text,
+            latencyMs: Date.now() - startTime,
+          } satisfies Omit<QuadResponseVariant, "error">;
+        })
+      );
+
+      const variants: QuadResponseVariant[] = variantSettledResults.map(
+        (settledResult, index) => {
+          if (settledResult.status === "fulfilled") {
+            return settledResult.value;
+          }
+
+          return {
+            id: variantIds[index],
+            modelId: QUAD_MODE_MODEL_IDS[index],
+            text: "",
+            latencyMs: 0,
+            error: normalizeQuadError(settledResult.reason),
+          };
+        }
+      );
+
+      const promptMessageId = message?.id ?? generateUUID();
+      const assistantMessageId = generateUUID();
+      const assistantMessageParts = [
+        {
+          type: "data-quad-responses" as const,
+          data: {
+            mode: "quad" as const,
+            promptMessageId,
+            variants,
+          },
+        },
+      ];
+
+      await saveMessages({
+        messages: [
+          {
+            id: assistantMessageId,
+            role: "assistant",
+            parts: assistantMessageParts,
+            createdAt: new Date(),
+            attachments: [],
+            chatId: id,
+          },
+        ],
+      });
+
+      const stream = createUIMessageStream({
+        execute: async ({ writer: dataStream }) => {
+          dataStream.write({
+            type: "start",
+            messageId: assistantMessageId,
+          });
+          dataStream.write(assistantMessageParts[0]);
+
+          if (titlePromise) {
+            const title = await titlePromise;
+            dataStream.write({ type: "data-chat-title", data: title });
+            updateChatTitleById({ chatId: id, title });
+          }
+
+          dataStream.write({ type: "finish" });
+        },
+      });
+
+      return createUIMessageStreamResponse({
+        stream,
+        async consumeSseStream({ stream: sseStream }) {
+          if (!process.env.REDIS_URL) {
+            return;
+          }
+          try {
+            const streamContext = getStreamContext();
+            if (streamContext) {
+              const streamId = generateId();
+              await createStreamId({ streamId, chatId: id });
+              await streamContext.createNewResumableStream(
+                streamId,
+                () => sseStream
+              );
+            }
+          } catch (_) {
+            // ignore redis errors
+          }
+        },
+      });
+    }
+
     const isReasoningModel =
       selectedChatModel.includes("reasoning") ||
       selectedChatModel.includes("thinking");
-
-    const modelMessages = await convertToModelMessages(uiMessages);
 
     const stream = createUIMessageStream({
       originalMessages: isToolApprovalFlow ? uiMessages : undefined,
@@ -229,7 +359,7 @@ export async function POST(request: Request) {
         if (
           error instanceof Error &&
           error.message?.includes(
-            "AI Gateway requires a valid credit card on file to service requests",
+            "AI Gateway requires a valid credit card on file to service requests"
           )
         ) {
           return "AI Gateway requires a valid credit card on file to service requests. Please visit https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai%3Fmodal%3Dadd-credit-card to add a card and unlock your free credits.";

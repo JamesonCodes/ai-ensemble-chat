@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
+import { useLocalStorage } from "usehooks-ts";
 import { ChatHeader } from "@/components/chat-header";
 import {
   AlertDialog,
@@ -22,7 +23,7 @@ import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatVisibility } from "@/hooks/use-chat-visibility";
 import type { Vote } from "@/lib/db/schema";
 import { ChatbotError } from "@/lib/errors";
-import type { Attachment, ChatMessage } from "@/lib/types";
+import type { Attachment, ChatMessage, ResponseMode } from "@/lib/types";
 import { fetcher, fetchWithErrorHandlers, generateUUID } from "@/lib/utils";
 import { Artifact } from "./artifact";
 import { useDataStream } from "./data-stream-provider";
@@ -71,6 +72,10 @@ export function Chat({
   const [input, setInput] = useState<string>("");
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
+  const [responseMode, setResponseMode] = useLocalStorage<ResponseMode>(
+    "chat-response-mode",
+    "single"
+  );
   const currentModelIdRef = useRef(currentModelId);
 
   useEffect(() => {
@@ -126,6 +131,7 @@ export function Chat({
               : { message: lastMessage }),
             selectedChatModel: currentModelIdRef.current,
             selectedVisibilityType: visibilityType,
+            responseMode,
             ...request.body,
           },
         };
@@ -216,6 +222,8 @@ export function Chat({
               input={input}
               messages={messages}
               onModelChange={setCurrentModelId}
+              onResponseModeChange={setResponseMode}
+              responseMode={responseMode}
               selectedModelId={currentModelId}
               selectedVisibilityType={visibilityType}
               sendMessage={sendMessage}
@@ -236,7 +244,9 @@ export function Chat({
         input={input}
         isReadonly={isReadonly}
         messages={messages}
+        onResponseModeChange={setResponseMode}
         regenerate={regenerate}
+        responseMode={responseMode}
         selectedModelId={currentModelId}
         selectedVisibilityType={visibilityType}
         sendMessage={sendMessage}

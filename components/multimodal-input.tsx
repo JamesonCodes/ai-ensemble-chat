@@ -32,7 +32,7 @@ import {
   DEFAULT_CHAT_MODEL,
   modelsByProvider,
 } from "@/lib/ai/models";
-import type { Attachment, ChatMessage } from "@/lib/types";
+import type { Attachment, ChatMessage, ResponseMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   PromptInput,
@@ -68,6 +68,8 @@ function PureMultimodalInput({
   selectedVisibilityType,
   selectedModelId,
   onModelChange,
+  responseMode,
+  onResponseModeChange,
 }: {
   chatId: string;
   input: string;
@@ -83,6 +85,8 @@ function PureMultimodalInput({
   selectedVisibilityType: VisibilityType;
   selectedModelId: string;
   onModelChange?: (modelId: string) => void;
+  responseMode: ResponseMode;
+  onResponseModeChange: (mode: ResponseMode) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
@@ -388,6 +392,11 @@ function PureMultimodalInput({
               onModelChange={onModelChange}
               selectedModelId={selectedModelId}
             />
+            <ResponseModeToggle
+              mode={responseMode}
+              onModeChange={onResponseModeChange}
+              status={status}
+            />
           </PromptInputTools>
 
           {status === "submitted" ? (
@@ -424,6 +433,9 @@ export const MultimodalInput = memo(
       return false;
     }
     if (prevProps.selectedModelId !== nextProps.selectedModelId) {
+      return false;
+    }
+    if (prevProps.responseMode !== nextProps.responseMode) {
       return false;
     }
 
@@ -532,6 +544,64 @@ function PureModelSelectorCompact({
 }
 
 const ModelSelectorCompact = memo(PureModelSelectorCompact);
+
+function PureResponseModeToggle({
+  mode,
+  onModeChange,
+  status,
+}: {
+  mode: ResponseMode;
+  onModeChange: (mode: ResponseMode) => void;
+  status: UseChatHelpers<ChatMessage>["status"];
+}) {
+  const isDisabled = status !== "ready";
+
+  return (
+    <div
+      className="flex items-center rounded-md border border-border bg-background p-0.5"
+      data-testid="response-mode-toggle"
+    >
+      <button
+        className={cn(
+          "rounded px-2 py-1 font-medium text-xs transition-colors",
+          mode === "single"
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:bg-muted"
+        )}
+        data-testid="response-mode-single"
+        disabled={isDisabled}
+        onClick={(event) => {
+          event.preventDefault();
+          onModeChange("single");
+          setCookie("chat-response-mode", "single");
+        }}
+        type="button"
+      >
+        Single
+      </button>
+      <button
+        className={cn(
+          "rounded px-2 py-1 font-medium text-xs transition-colors",
+          mode === "quad"
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:bg-muted"
+        )}
+        data-testid="response-mode-quad"
+        disabled={isDisabled}
+        onClick={(event) => {
+          event.preventDefault();
+          onModeChange("quad");
+          setCookie("chat-response-mode", "quad");
+        }}
+        type="button"
+      >
+        Quad
+      </button>
+    </div>
+  );
+}
+
+const ResponseModeToggle = memo(PureResponseModeToggle);
 
 function PureStopButton({
   stop,

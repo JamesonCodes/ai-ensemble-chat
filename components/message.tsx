@@ -1,8 +1,9 @@
 "use client";
 import type { UseChatHelpers } from "@ai-sdk/react";
 import { useState } from "react";
+import { chatModels } from "@/lib/ai/models";
 import type { Vote } from "@/lib/db/schema";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, QuadResponsesData } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
 import { useDataStream } from "./data-stream-provider";
 import { DocumentToolResult } from "./document";
@@ -80,7 +81,10 @@ const PurePreviewMessage = ({
                 (message.parts?.some(
                   (p) => p.type === "text" && p.text?.trim()
                 ) ||
-                  message.parts?.some((p) => p.type.startsWith("tool-")))) ||
+                  message.parts?.some((p) => p.type.startsWith("tool-")) ||
+                  message.parts?.some(
+                    (p) => p.type === "data-quad-responses"
+                  ))) ||
               mode === "edit",
             "max-w-[calc(100%-2.5rem)] sm:max-w-[min(fit-content,80%)]":
               message.role === "user" && mode !== "edit",
@@ -257,6 +261,54 @@ const PurePreviewMessage = ({
                       )}
                     </ToolContent>
                   </Tool>
+                </div>
+              );
+            }
+
+            if (type === "data-quad-responses") {
+              const quadResponses = part.data as QuadResponsesData;
+
+              return (
+                <div className="w-full" key={key}>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {quadResponses.variants.map((variant) => {
+                      const modelLabel =
+                        chatModels.find((model) => model.id === variant.modelId)
+                          ?.name ?? variant.modelId;
+
+                      return (
+                        <div
+                          className="rounded-xl border border-border bg-card p-3 shadow-xs"
+                          key={`${key}-${variant.id}`}
+                        >
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <div className="font-semibold text-sm">
+                              {variant.id}: {modelLabel}
+                            </div>
+                            {variant.error && (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-700 text-xs dark:bg-red-900/40 dark:text-red-300">
+                                Failed
+                              </span>
+                            )}
+                          </div>
+
+                          <MessageContent className="bg-transparent p-0">
+                            <Response>
+                              {variant.text.trim().length > 0
+                                ? sanitizeText(variant.text)
+                                : (variant.error ?? "No output returned.")}
+                            </Response>
+                          </MessageContent>
+
+                          <div className="mt-3 text-muted-foreground text-xs">
+                            {variant.error
+                              ? variant.error
+                              : `${variant.latencyMs}ms`}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             }
