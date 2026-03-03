@@ -31,6 +31,8 @@ const PurePreviewMessage = ({
   vote,
   isLoading,
   setMessages,
+  selectedModelId,
+  onSelectWinnerModel,
   regenerate,
   isReadonly,
   requiresScrollPadding: _requiresScrollPadding,
@@ -41,6 +43,8 @@ const PurePreviewMessage = ({
   vote: Vote | undefined;
   isLoading: boolean;
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
+  selectedModelId?: string;
+  onSelectWinnerModel?: (modelId: string, quadrantId: string) => void;
   regenerate: UseChatHelpers<ChatMessage>["regenerate"];
   isReadonly: boolean;
   requiresScrollPadding: boolean;
@@ -275,10 +279,17 @@ const PurePreviewMessage = ({
                       const modelLabel =
                         chatModels.find((model) => model.id === variant.modelId)
                           ?.name ?? variant.modelId;
+                      const isSelectedWinner =
+                        selectedModelId === variant.modelId;
 
                       return (
                         <div
-                          className="rounded-xl border border-border bg-card p-3 shadow-xs"
+                          className={cn(
+                            "rounded-xl border bg-card p-3 shadow-xs",
+                            isSelectedWinner
+                              ? "border-primary"
+                              : "border-border"
+                          )}
                           key={`${key}-${variant.id}`}
                         >
                           <div className="mb-2 flex items-center justify-between gap-2">
@@ -305,6 +316,35 @@ const PurePreviewMessage = ({
                               ? variant.error
                               : `${variant.latencyMs}ms`}
                           </div>
+
+                          {onSelectWinnerModel && (
+                            <div className="mt-3">
+                              <button
+                                aria-label={`Use model ${variant.id} for next prompt`}
+                                className={cn(
+                                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-medium text-xs transition-colors",
+                                  isSelectedWinner
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-input hover:bg-muted",
+                                  variant.error &&
+                                    "cursor-not-allowed opacity-50"
+                                )}
+                                disabled={Boolean(variant.error)}
+                                onClick={() =>
+                                  onSelectWinnerModel(
+                                    variant.modelId,
+                                    variant.id
+                                  )
+                                }
+                                title="Use for Next"
+                                type="button"
+                              >
+                                <span className="inline-flex items-center">
+                                  Use for Next
+                                </span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

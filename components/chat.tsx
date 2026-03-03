@@ -21,6 +21,7 @@ import {
 import { useArtifactSelector } from "@/hooks/use-artifact";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatVisibility } from "@/hooks/use-chat-visibility";
+import { chatModels } from "@/lib/ai/models";
 import type { Vote } from "@/lib/db/schema";
 import { ChatbotError } from "@/lib/errors";
 import type { Attachment, ChatMessage, ResponseMode } from "@/lib/types";
@@ -32,6 +33,12 @@ import { MultimodalInput } from "./multimodal-input";
 import { getChatHistoryPaginationKey } from "./sidebar-history";
 import { toast } from "./toast";
 import type { VisibilityType } from "./visibility-selector";
+
+function setCookie(name: string, value: string) {
+  const maxAge = 60 * 60 * 24 * 365; // 1 year
+  // biome-ignore lint/suspicious/noDocumentCookie: needed for client-side cookie setting
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}`;
+}
 
 export function Chat({
   id,
@@ -77,10 +84,15 @@ export function Chat({
     "single"
   );
   const currentModelIdRef = useRef(currentModelId);
+  const responseModeRef = useRef(responseMode);
 
   useEffect(() => {
     currentModelIdRef.current = currentModelId;
   }, [currentModelId]);
+
+  useEffect(() => {
+    responseModeRef.current = responseMode;
+  }, [responseMode]);
 
   const {
     messages,
@@ -131,7 +143,7 @@ export function Chat({
               : { message: lastMessage }),
             selectedChatModel: currentModelIdRef.current,
             selectedVisibilityType: visibilityType,
-            responseMode,
+            responseMode: responseModeRef.current,
             ...request.body,
           },
         };
@@ -192,6 +204,25 @@ export function Chat({
     setMessages,
   });
 
+  const handleResponseModeChange = (mode: ResponseMode) => {
+    responseModeRef.current = mode;
+    setResponseMode(mode);
+  };
+
+  const handleWinnerModelSelect = (modelId: string, quadrantId: string) => {
+    currentModelIdRef.current = modelId;
+    setCurrentModelId(modelId);
+    setCookie("chat-model", modelId);
+
+    const modelLabel =
+      chatModels.find((model) => model.id === modelId)?.name ?? modelId;
+
+    toast({
+      type: "success",
+      description: `Model ${quadrantId} (${modelLabel}) selected for next prompt.`,
+    });
+  };
+
   return (
     <>
       <div className="overscroll-behavior-contain flex h-dvh min-w-0 touch-pan-y flex-col bg-background">
@@ -207,8 +238,9 @@ export function Chat({
           isArtifactVisible={isArtifactVisible}
           isReadonly={isReadonly}
           messages={messages}
+          onSelectWinnerModel={handleWinnerModelSelect}
           regenerate={regenerate}
-          selectedModelId={initialChatModel}
+          selectedModelId={currentModelId}
           setMessages={setMessages}
           status={status}
           votes={votes}
@@ -222,7 +254,7 @@ export function Chat({
               input={input}
               messages={messages}
               onModelChange={setCurrentModelId}
-              onResponseModeChange={setResponseMode}
+              onResponseModeChange={handleResponseModeChange}
               responseMode={responseMode}
               selectedModelId={currentModelId}
               selectedVisibilityType={visibilityType}
@@ -244,7 +276,7 @@ export function Chat({
         input={input}
         isReadonly={isReadonly}
         messages={messages}
-        onResponseModeChange={setResponseMode}
+        onResponseModeChange={handleResponseModeChange}
         regenerate={regenerate}
         responseMode={responseMode}
         selectedModelId={currentModelId}

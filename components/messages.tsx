@@ -18,6 +18,7 @@ type MessagesProps = {
   isReadonly: boolean;
   isArtifactVisible: boolean;
   selectedModelId: string;
+  onSelectWinnerModel?: (modelId: string, quadrantId: string) => void;
 };
 
 function PureMessages({
@@ -29,7 +30,8 @@ function PureMessages({
   setMessages,
   regenerate,
   isReadonly,
-  selectedModelId: _selectedModelId,
+  selectedModelId,
+  onSelectWinnerModel,
 }: MessagesProps) {
   const {
     containerRef: messagesContainerRef,
@@ -62,10 +64,12 @@ function PureMessages({
               isReadonly={isReadonly}
               key={message.id}
               message={message}
+              onSelectWinnerModel={onSelectWinnerModel}
               regenerate={regenerate}
               requiresScrollPadding={
                 hasSentMessage && index === messages.length - 1
               }
+              selectedModelId={selectedModelId}
               setMessages={setMessages}
               vote={
                 votes
