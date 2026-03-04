@@ -18,7 +18,7 @@ import { sheetArtifact } from "@/artifacts/sheet/client";
 import { textArtifact } from "@/artifacts/text/client";
 import { useArtifact } from "@/hooks/use-artifact";
 import type { Document, Vote } from "@/lib/db/schema";
-import type { Attachment, ChatMessage, ResponseMode } from "@/lib/types";
+import type { Attachment, ChatMessage } from "@/lib/types";
 import { fetcher } from "@/lib/utils";
 import { ArtifactActions } from "./artifact-actions";
 import { ArtifactCloseButton } from "./artifact-close-button";
@@ -69,8 +69,6 @@ function PureArtifact({
   isReadonly,
   selectedVisibilityType,
   selectedModelId,
-  responseMode,
-  onResponseModeChange,
 }: {
   addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
   chatId: string;
@@ -88,8 +86,6 @@ function PureArtifact({
   isReadonly: boolean;
   selectedVisibilityType: VisibilityType;
   selectedModelId: string;
-  responseMode: ResponseMode;
-  onResponseModeChange: (mode: ResponseMode) => void;
 }) {
   const { artifact, setArtifact, metadata, setMetadata } = useArtifact();
 
@@ -344,8 +340,6 @@ function PureArtifact({
                     className="bg-background dark:bg-muted"
                     input={input}
                     messages={messages}
-                    onResponseModeChange={onResponseModeChange}
-                    responseMode={responseMode}
                     selectedModelId={selectedModelId}
                     selectedVisibilityType={selectedVisibilityType}
                     sendMessage={sendMessage}
@@ -533,9 +527,5 @@ export const Artifact = memo(PureArtifact, (prevProps, nextProps) => {
   if (prevProps.selectedVisibilityType !== nextProps.selectedVisibilityType) {
     return false;
   }
-  if (prevProps.responseMode !== nextProps.responseMode) {
-    return false;
-  }
-
   return true;
 });

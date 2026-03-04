@@ -229,6 +229,8 @@ export function Chat({
         <ChatHeader
           chatId={id}
           isReadonly={isReadonly}
+          onResponseModeChange={handleResponseModeChange}
+          responseMode={responseMode}
           selectedVisibilityType={initialVisibilityType}
         />
 
@@ -254,8 +256,6 @@ export function Chat({
               input={input}
               messages={messages}
               onModelChange={setCurrentModelId}
-              onResponseModeChange={handleResponseModeChange}
-              responseMode={responseMode}
               selectedModelId={currentModelId}
               selectedVisibilityType={visibilityType}
               sendMessage={sendMessage}
@@ -276,9 +276,7 @@ export function Chat({
         input={input}
         isReadonly={isReadonly}
         messages={messages}
-        onResponseModeChange={handleResponseModeChange}
         regenerate={regenerate}
-        responseMode={responseMode}
         selectedModelId={currentModelId}
         selectedVisibilityType={visibilityType}
         sendMessage={sendMessage}
