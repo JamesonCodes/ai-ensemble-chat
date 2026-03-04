@@ -1,5 +1,6 @@
 import type { UseChatHelpers } from "@ai-sdk/react";
 import { ArrowDownIcon } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useMessages } from "@/hooks/use-messages";
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
@@ -44,6 +45,45 @@ function PureMessages({
   });
 
   useDataStream();
+
+  const previousStatusRef = useRef(status);
+
+  useEffect(() => {
+    const previousStatus = previousStatusRef.current;
+    previousStatusRef.current = status;
+
+    const hasJustFinishedStreaming =
+      status === "ready" &&
+      (previousStatus === "streaming" || previousStatus === "submitted");
+
+    if (!hasJustFinishedStreaming) {
+      return;
+    }
+
+    const lastMessage = messages.at(-1);
+    const hasQuadResponses =
+      lastMessage?.role === "assistant" &&
+      lastMessage.parts?.some((part) => part.type === "data-quad-responses");
+
+    if (!hasQuadResponses || !messagesContainerRef.current || !lastMessage) {
+      return;
+    }
+
+    const selector = `[data-message-id="${lastMessage.id}"]`;
+    const targetMessage = messagesContainerRef.current.querySelector(selector);
+
+    if (!(targetMessage instanceof HTMLElement)) {
+      return;
+    }
+
+    const container = messagesContainerRef.current;
+    const targetTop = targetMessage.offsetTop - 8;
+
+    container.scrollTo({
+      top: Math.max(targetTop, 0),
+      behavior: "instant",
+    });
+  }, [messages, messagesContainerRef, status]);
 
   return (
     <div className="relative flex-1 bg-background">
