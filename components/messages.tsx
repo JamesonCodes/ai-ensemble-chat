@@ -66,6 +66,7 @@ function PureMessages({
       lastMessage.parts?.some((part) => part.type === "data-quad-responses");
 
     if (!hasQuadResponses || !messagesContainerRef.current || !lastMessage) {
+      scrollToBottom("instant");
       return;
     }
 
@@ -83,7 +84,7 @@ function PureMessages({
       top: Math.max(targetTop, 0),
       behavior: "instant",
     });
-  }, [messages, messagesContainerRef, status]);
+  }, [messages, messagesContainerRef, scrollToBottom, status]);
 
   return (
     <div className="relative flex-1 bg-background">
