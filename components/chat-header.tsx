@@ -71,11 +71,11 @@ function PureChatHeader({
 
       {!isReadonly && (
         <TooltipProvider delayDuration={120}>
-          <fieldset className="relative ml-auto grid h-8 w-[72px] grid-cols-2 items-center rounded-md border border-border bg-muted/40 p-0.5">
+          <fieldset className="relative ml-auto grid h-8 w-[80px] grid-cols-2 items-center rounded-md border border-border bg-muted/40 p-0.5">
             <legend className="sr-only">View mode</legend>
             <motion.div
-              animate={{ x: responseMode === "single" ? 0 : 32 }}
-              className="absolute top-0.5 left-0.5 h-6 w-8 rounded-sm border border-border bg-background"
+              animate={{ x: responseMode === "single" ? 0 : 38 }}
+              className="absolute top-[3px] left-[3px] h-6 w-8 rounded-sm border border-border bg-background"
               transition={{ duration: 0.16, ease: "easeOut" }}
             />
 
@@ -85,7 +85,7 @@ function PureChatHeader({
                   aria-label="single response"
                   aria-pressed={responseMode === "single"}
                   className={cn(
-                    "relative z-10 inline-flex h-6 w-8 items-center justify-center rounded-sm text-muted-foreground transition-colors",
+                    "relative z-10 inline-flex h-7 w-9 items-center justify-center rounded-sm text-muted-foreground transition-colors",
                     responseMode === "single" && "text-foreground"
                   )}
                   onClick={() => {
@@ -94,7 +94,7 @@ function PureChatHeader({
                   }}
                   type="button"
                 >
-                  <SquareIcon className="size-3.5" />
+                  <SquareIcon className="size-4" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom" sideOffset={8}>
@@ -108,7 +108,7 @@ function PureChatHeader({
                   aria-label="quad response"
                   aria-pressed={responseMode === "quad"}
                   className={cn(
-                    "relative z-10 inline-flex h-6 w-8 items-center justify-center rounded-sm text-muted-foreground transition-colors",
+                    "relative z-10 inline-flex h-7 w-9 items-center justify-center rounded-sm text-muted-foreground transition-colors",
                     responseMode === "quad" && "text-foreground"
                   )}
                   onClick={() => {
@@ -117,7 +117,7 @@ function PureChatHeader({
                   }}
                   type="button"
                 >
-                  <LayoutGridIcon className="size-3.5" />
+                  <LayoutGridIcon className="size-4" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom" sideOffset={8}>
