@@ -480,6 +480,9 @@ function PureModelSelectorCompact({
     anthropic: "Anthropic",
     openai: "OpenAI",
     google: "Google",
+    alibaba: "Alibaba",
+    moonshotai: "Moonshot AI",
+    minimax: "MiniMax",
     xai: "xAI",
     reasoning: "Reasoning",
   };
