@@ -1,71 +1,218 @@
-<a href="https://chat.vercel.ai/">
-  <img alt="Chatbot" src="app/(chat)/opengraph-image.png">
-  <h1 align="center">Chatbot</h1>
-</a>
+# AI Ensemble Chat
 
-<p align="center">
-    Chatbot (formerly AI Chatbot) is a free, open-source template built with Next.js and the AI SDK that helps you quickly build powerful chatbot applications.
-</p>
+A production-style chat application built with Next.js and the Vercel AI SDK.
 
-<p align="center">
-  <a href="https://chatbot.dev"><strong>Read Docs</strong></a> ·
-  <a href="#features"><strong>Features</strong></a> ·
-  <a href="#model-providers"><strong>Model Providers</strong></a> ·
-  <a href="#deploy-your-own"><strong>Deploy Your Own</strong></a> ·
-  <a href="#running-locally"><strong>Running locally</strong></a>
-</p>
-<br/>
+This portfolio project builds on the official Vercel AI Chatbot template and emphasizes:
 
-## Features
+- Multi-model orchestration
+- Real-time chat UX
+- Clean full-stack architecture
+- Practical product features (comparison mode, winner selection, persistence)
 
-- [Next.js](https://nextjs.org) App Router
-  - Advanced routing for seamless navigation and performance
-  - React Server Components (RSCs) and Server Actions for server-side rendering and increased performance
-- [AI SDK](https://ai-sdk.dev/docs/introduction)
-  - Unified API for generating text, structured objects, and tool calls with LLMs
-  - Hooks for building dynamic chat and generative user interfaces
-  - Supports OpenAI, Anthropic, Google, xAI, and other model providers via AI Gateway
-- [shadcn/ui](https://ui.shadcn.com)
-  - Styling with [Tailwind CSS](https://tailwindcss.com)
-  - Component primitives from [Radix UI](https://radix-ui.com) for accessibility and flexibility
-- Data Persistence
-  - [Neon Serverless Postgres](https://vercel.com/marketplace/neon) for saving chat history and user data
-  - [Vercel Blob](https://vercel.com/storage/blob) for efficient file storage
-- [Auth.js](https://authjs.dev)
-  - Simple and secure authentication
+## Attribution
 
-## Model Providers
+Adapted from the official Vercel AI Chatbot template:
+https://github.com/vercel/ai-chatbot
 
-This template uses the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) to access multiple AI models through a unified interface. The default model is [OpenAI](https://openai.com) GPT-4.1 Mini, with support for Anthropic, Google, and xAI models.
+## Highlights
 
-### AI Gateway Authentication
+- Single-response chat mode
+- Quad-response mode (4 model outputs from one prompt)
+- Winner selection (`Use for Next`) to route the next prompt to the preferred model
+- Header view-mode toggle (`single` / `quad`) with tooltips
+- Smart scrolling behavior:
+  - Quad finishes anchored at top cards
+  - Single finishes jump to newest response
+- Auth (guest + regular user)
+- Persistent chat history in Postgres
+- File upload support via Vercel Blob
+- Optional resumable streaming with Redis
 
-**For Vercel deployments**: Authentication is handled automatically via OIDC tokens.
+## Tech Stack
 
-**For non-Vercel deployments**: You need to provide an AI Gateway API key by setting the `AI_GATEWAY_API_KEY` environment variable in your `.env.local` file.
+- Next.js (App Router)
+- TypeScript
+- Vercel AI SDK (`ai`, `@ai-sdk/react`, AI Gateway)
+- Auth.js (NextAuth)
+- Drizzle ORM + Postgres
+- shadcn/ui + Radix + Tailwind CSS
+- SWR + Sonner + Framer Motion
 
-With the [AI SDK](https://ai-sdk.dev/docs/introduction), you can also switch to direct LLM providers like [OpenAI](https://openai.com), [Anthropic](https://anthropic.com), [Cohere](https://cohere.com/), and [many more](https://ai-sdk.dev/providers/ai-sdk-providers) with just a few lines of code.
+## Quick Start (Beginner-Friendly)
 
-## Deploy Your Own
+### 1) Prerequisites
 
-You can deploy your own version of Chatbot to Vercel with one click:
+Install these first:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/templates/next.js/chatbot)
+- Node.js 20+
+- pnpm 9+
+- A Postgres database
+- A Vercel Blob token
+- AI Gateway key (for local/non-Vercel usage)
 
-## Running locally
+Optional:
 
-You will need to use the environment variables [defined in `.env.example`](.env.example) to run Chatbot. It's recommended you use [Vercel Environment Variables](https://vercel.com/docs/projects/environment-variables) for this, but a `.env` file is all that is necessary.
+- Redis (for resumable streams)
 
-> Note: You should not commit your `.env` file or it will expose secrets that will allow others to control access to your various AI and authentication provider accounts.
+Helpful setup links:
 
-1. Install Vercel CLI: `npm i -g vercel`
-2. Link local instance with Vercel and GitHub accounts (creates `.vercel` directory): `vercel link`
-3. Download your environment variables: `vercel env pull`
+- AI Gateway: https://vercel.com/ai-gateway
+- Vercel Blob Store: https://vercel.com/docs/vercel-blob
+- Postgres: https://vercel.com/docs/postgres
+- Redis: https://vercel.com/docs/redis
+
+### 2) Clone and install
 
 ```bash
+git clone <your-repo-url>
+cd ai-ensemble-chat
 pnpm install
-pnpm db:migrate # Setup database or apply latest database changes
+```
+
+### Optional: Agent skills setup (Codex users)
+
+If you use Codex/agent workflows, note that cloning this repo and running `pnpm install`
+sets up the app, but may not automatically install/sync local agent skills on every machine.
+
+- App runtime setup: covered by this README
+- Agent skill setup: managed by your Codex environment/tooling
+
+This repo includes `skills-lock.json` to track skill state, but you may still need to run
+your local skill install/sync step when setting up a new workstation.
+
+AI SDK skill reference:
+- https://skills.sh/vercel/ai/ai-sdk
+
+### 3) Create environment file
+
+Copy `.env.example` to `.env.local` and fill values:
+
+```bash
+cp .env.example .env.local
+```
+
+Required variables:
+
+- `AUTH_SECRET`
+- `AI_GATEWAY_API_KEY` (required outside Vercel)
+- `POSTGRES_URL`
+- `BLOB_READ_WRITE_TOKEN`
+
+Optional:
+
+- `REDIS_URL` (enables resumable stream support)
+
+### 4) Run database migration
+
+```bash
+pnpm db:migrate
+```
+
+### 5) Start dev server
+
+```bash
 pnpm dev
 ```
 
-Your app template should now be running on [localhost:3000](http://localhost:3000).
+Open: `http://localhost:3000`
+
+## How to Use
+
+### Single vs Quad mode
+
+- Use the header toggle:
+  - `single`: one assistant response
+  - `quad`: four assistant candidates
+
+### Quad winner flow
+
+1. Send a prompt in Quad mode
+2. Compare 4 responses
+3. Click `Use for Next` on the best one
+4. That model becomes active for the next prompt
+
+### Model selection
+
+Use the model dropdown in the input toolbar to choose provider/model.
+
+## Scripts
+
+- `pnpm dev` - start local development server
+- `pnpm build` - migrate DB then build
+- `pnpm start` - start production server
+- `pnpm test` - run Playwright tests
+- `pnpm lint` - run linter checks
+- `pnpm format` - auto-fix lint/style
+- `pnpm db:migrate` - apply migrations
+- `pnpm db:studio` - open Drizzle Studio
+
+## Environment Variables
+
+See `.env.example` for the full list.
+
+```env
+AUTH_SECRET=
+AI_GATEWAY_API_KEY=
+BLOB_READ_WRITE_TOKEN=
+POSTGRES_URL=
+REDIS_URL=
+```
+
+## Project Structure
+
+```text
+app/
+  (chat)/
+    api/chat/route.ts        # chat API (single + quad modes)
+components/
+  chat.tsx                   # main chat state + transport wiring
+  chat-header.tsx            # top utility bar + mode toggle
+  message.tsx                # message rendering + quad cards
+  multimodal-input.tsx       # input, model selector, uploads
+lib/
+  ai/models.ts               # curated model list
+  ai/providers.ts            # gateway/provider wiring
+  ai/entitlements.ts         # rate/usage limits by user type
+  db/queries.ts              # persistence layer
+```
+
+## Portfolio Notes
+
+Areas this project emphasizes:
+
+- Multi-model comparison UX and state synchronization
+- Robust request-state handling (avoids stale mode/model payload bugs)
+- Practical API/UI design for advanced chat features without over-engineering
+- Clear separation of concerns between API routes, UI state, and rendering components
+
+## Troubleshooting
+
+### App starts but chat errors immediately
+
+Check:
+
+- `AI_GATEWAY_API_KEY` is valid (if running locally)
+- provider/model IDs in `lib/ai/models.ts` are supported by your gateway setup
+
+### No messages saved
+
+Check:
+
+- `POSTGRES_URL`
+- `pnpm db:migrate` ran successfully
+
+### File uploads fail
+
+Check:
+
+- `BLOB_READ_WRITE_TOKEN`
+
+### Resumable stream features unavailable
+
+Set:
+
+- `REDIS_URL`
+
+## License
+
+MIT
