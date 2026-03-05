@@ -15,10 +15,10 @@ type SuggestedActionsProps = {
 
 function PureSuggestedActions({ chatId, sendMessage }: SuggestedActionsProps) {
   const suggestedActions = [
-    "A bat and a ball cost $1.10. The bat costs $1.00 more. Price of ball?",
-    "Elevator pitch for 'Netflix for Pets' in a high-energy brand voice.",
-    "Most concise way to scrape website titles using Python.",
-    "Best tech stack for a real-time collaborative whiteboard in 2026?",
+    "The bat and ball cost $1.10 riddle",
+    "Pitch 'Netflix for Pets' like a Pixar movie",
+    "One-liner to scrape titles with Python",
+    "Tech stack for a real-time whiteboard",
   ];
 
   return (
