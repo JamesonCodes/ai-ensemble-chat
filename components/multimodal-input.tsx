@@ -426,7 +426,6 @@ export const MultimodalInput = memo(
     if (prevProps.selectedModelId !== nextProps.selectedModelId) {
       return false;
     }
-
     return true;
   }
 );
@@ -481,6 +480,9 @@ function PureModelSelectorCompact({
     anthropic: "Anthropic",
     openai: "OpenAI",
     google: "Google",
+    alibaba: "Alibaba",
+    moonshotai: "Moonshot AI",
+    minimax: "MiniMax",
     xai: "xAI",
     reasoning: "Reasoning",
   };

@@ -1,8 +1,9 @@
 "use client";
 import type { UseChatHelpers } from "@ai-sdk/react";
 import { useState } from "react";
+import { chatModels } from "@/lib/ai/models";
 import type { Vote } from "@/lib/db/schema";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, QuadResponsesData } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
 import { useDataStream } from "./data-stream-provider";
 import { DocumentToolResult } from "./document";
@@ -30,6 +31,8 @@ const PurePreviewMessage = ({
   vote,
   isLoading,
   setMessages,
+  selectedModelId,
+  onSelectWinnerModel,
   regenerate,
   isReadonly,
   requiresScrollPadding: _requiresScrollPadding,
@@ -40,6 +43,8 @@ const PurePreviewMessage = ({
   vote: Vote | undefined;
   isLoading: boolean;
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
+  selectedModelId?: string;
+  onSelectWinnerModel?: (modelId: string, quadrantId: string) => void;
   regenerate: UseChatHelpers<ChatMessage>["regenerate"];
   isReadonly: boolean;
   requiresScrollPadding: boolean;
@@ -55,6 +60,7 @@ const PurePreviewMessage = ({
   return (
     <div
       className="group/message fade-in w-full animate-in duration-200"
+      data-message-id={message.id}
       data-role={message.role}
       data-testid={`message-${message.role}`}
     >
@@ -80,7 +86,10 @@ const PurePreviewMessage = ({
                 (message.parts?.some(
                   (p) => p.type === "text" && p.text?.trim()
                 ) ||
-                  message.parts?.some((p) => p.type.startsWith("tool-")))) ||
+                  message.parts?.some((p) => p.type.startsWith("tool-")) ||
+                  message.parts?.some(
+                    (p) => p.type === "data-quad-responses"
+                  ))) ||
               mode === "edit",
             "max-w-[calc(100%-2.5rem)] sm:max-w-[min(fit-content,80%)]":
               message.role === "user" && mode !== "edit",
@@ -257,6 +266,104 @@ const PurePreviewMessage = ({
                       )}
                     </ToolContent>
                   </Tool>
+                </div>
+              );
+            }
+
+            if (type === "data-quad-responses") {
+              const quadResponses = part.data as QuadResponsesData;
+
+              return (
+                <div className="w-full" key={key}>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {quadResponses.variants.map((variant) => {
+                      const modelLabel =
+                        chatModels.find((model) => model.id === variant.modelId)
+                          ?.name ?? variant.modelId;
+                      const variantStatus =
+                        variant.status ??
+                        (variant.error ? "error" : ("done" as const));
+                      const isSelectedWinner =
+                        selectedModelId === variant.modelId;
+                      const canSelectWinner =
+                        variantStatus === "done" && !variant.error;
+
+                      return (
+                        <div
+                          className={cn(
+                            "rounded-xl border bg-card p-3 shadow-xs",
+                            isSelectedWinner
+                              ? "border-primary"
+                              : "border-border"
+                          )}
+                          key={`${key}-${variant.id}`}
+                        >
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <div className="font-semibold text-sm">
+                              {variant.id}: {modelLabel}
+                            </div>
+                            {variantStatus === "streaming" && (
+                              <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground text-xs">
+                                Streaming
+                              </span>
+                            )}
+                            {variantStatus === "error" && (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-700 text-xs dark:bg-red-900/40 dark:text-red-300">
+                                Failed
+                              </span>
+                            )}
+                          </div>
+
+                          <MessageContent className="bg-transparent p-0">
+                            <Response>
+                              {variant.text.trim().length > 0
+                                ? sanitizeText(variant.text)
+                                : variantStatus === "streaming"
+                                  ? "Generating..."
+                                  : (variant.error ?? "No output returned.")}
+                            </Response>
+                          </MessageContent>
+
+                          <div className="mt-3 text-muted-foreground text-xs">
+                            {variantStatus === "streaming"
+                              ? "Streaming..."
+                              : variant.error
+                                ? variant.error
+                                : `${variant.latencyMs}ms`}
+                          </div>
+
+                          {onSelectWinnerModel && (
+                            <div className="mt-3">
+                              <button
+                                aria-label={`Use model ${variant.id} for next prompt`}
+                                className={cn(
+                                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-medium text-xs transition-colors",
+                                  isSelectedWinner
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-input hover:bg-muted",
+                                  !canSelectWinner &&
+                                    "cursor-not-allowed opacity-50"
+                                )}
+                                disabled={!canSelectWinner}
+                                onClick={() =>
+                                  onSelectWinnerModel(
+                                    variant.modelId,
+                                    variant.id
+                                  )
+                                }
+                                title="Use for Next"
+                                type="button"
+                              >
+                                <span className="inline-flex items-center">
+                                  Use for Next
+                                </span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             }

@@ -1,4 +1,3 @@
-import { checkBotId } from "botid/server";
 import { geolocation, ipAddress } from "@vercel/functions";
 import {
   convertToModelMessages,
@@ -8,10 +7,12 @@ import {
   stepCountIs,
   streamText,
 } from "ai";
+import { checkBotId } from "botid/server";
 import { after } from "next/server";
 import { createResumableStreamContext } from "resumable-stream";
 import { auth, type UserType } from "@/app/(auth)/auth";
 import { entitlementsByUserType } from "@/lib/ai/entitlements";
+import { QUAD_MODE_MODEL_IDS } from "@/lib/ai/models";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModel } from "@/lib/ai/providers";
 import { createDocument } from "@/lib/ai/tools/create-document";
@@ -33,7 +34,11 @@ import {
 import type { DBMessage } from "@/lib/db/schema";
 import { ChatbotError } from "@/lib/errors";
 import { checkIpRateLimit } from "@/lib/ratelimit";
-import type { ChatMessage } from "@/lib/types";
+import type {
+  ChatMessage,
+  QuadResponseVariant,
+  QuadVariantId,
+} from "@/lib/types";
 import { convertToUIMessages, generateUUID } from "@/lib/utils";
 import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
@@ -50,6 +55,24 @@ function getStreamContext() {
 
 export { getStreamContext };
 
+function normalizeQuadError(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return "Generation failed";
+}
+
+function createInitialQuadVariants(): QuadResponseVariant[] {
+  return QUAD_MODE_MODEL_IDS.map((modelId, index) => ({
+    id: (["A", "B", "C", "D"] as const)[index],
+    modelId,
+    text: "",
+    latencyMs: 0,
+    status: "streaming",
+  }));
+}
+
 export async function POST(request: Request) {
   let requestBody: PostRequestBody;
 
@@ -61,8 +84,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { id, message, messages, selectedChatModel, selectedVisibilityType } =
-      requestBody;
+    const {
+      id,
+      message,
+      messages,
+      selectedChatModel,
+      selectedVisibilityType,
+      responseMode,
+    } = requestBody;
 
     const [botResult, session] = await Promise.all([checkBotId(), auth()]);
 
@@ -88,6 +117,8 @@ export async function POST(request: Request) {
     }
 
     const isToolApprovalFlow = Boolean(messages);
+    const effectiveResponseMode =
+      isToolApprovalFlow || responseMode === "single" ? "single" : "quad";
 
     const chat = await getChatById({ id });
     let messagesFromDb: DBMessage[] = [];
@@ -138,11 +169,155 @@ export async function POST(request: Request) {
       });
     }
 
+    const modelMessages = await convertToModelMessages(uiMessages);
+
+    if (effectiveResponseMode === "quad") {
+      const promptMessageId = message?.id ?? generateUUID();
+      const assistantMessageId = generateUUID();
+      const quadPartId = `quad-${assistantMessageId}`;
+
+      const stream = createUIMessageStream({
+        execute: async ({ writer: dataStream }) => {
+          let variants = createInitialQuadVariants();
+          const writeQuadUpdate = (isFinal = false) => {
+            dataStream.write({
+              type: "data-quad-responses",
+              id: quadPartId,
+              data: {
+                mode: "quad",
+                promptMessageId,
+                variants,
+                isFinal,
+              },
+            });
+          };
+
+          dataStream.write({
+            type: "start",
+            messageId: assistantMessageId,
+          });
+          writeQuadUpdate();
+
+          const variantPromises = QUAD_MODE_MODEL_IDS.map(
+            async (modelId, index) => {
+              const variantId: QuadVariantId = (["A", "B", "C", "D"] as const)[
+                index
+              ];
+              const startedAt = Date.now();
+
+              try {
+                const result = streamText({
+                  model: getLanguageModel(modelId),
+                  system: systemPrompt({
+                    selectedChatModel: modelId,
+                    requestHints,
+                  }),
+                  messages: modelMessages,
+                  experimental_activeTools: [],
+                  experimental_telemetry: {
+                    isEnabled: isProductionEnvironment,
+                    functionId: `stream-text-quad-${index}`,
+                  },
+                });
+
+                for await (const delta of result.textStream) {
+                  variants = variants.map((variant) =>
+                    variant.id === variantId
+                      ? { ...variant, text: variant.text + delta }
+                      : variant
+                  );
+                  writeQuadUpdate();
+                }
+
+                variants = variants.map((variant) =>
+                  variant.id === variantId
+                    ? {
+                        ...variant,
+                        status: "done",
+                        latencyMs: Date.now() - startedAt,
+                      }
+                    : variant
+                );
+                writeQuadUpdate();
+              } catch (error) {
+                variants = variants.map((variant) =>
+                  variant.id === variantId
+                    ? {
+                        ...variant,
+                        status: "error",
+                        latencyMs: Date.now() - startedAt,
+                        error: normalizeQuadError(error),
+                      }
+                    : variant
+                );
+                writeQuadUpdate();
+              }
+            }
+          );
+
+          await Promise.all(variantPromises);
+          writeQuadUpdate(true);
+
+          await saveMessages({
+            messages: [
+              {
+                id: assistantMessageId,
+                role: "assistant",
+                parts: [
+                  {
+                    type: "data-quad-responses" as const,
+                    id: quadPartId,
+                    data: {
+                      mode: "quad" as const,
+                      promptMessageId,
+                      variants,
+                      isFinal: true,
+                    },
+                  },
+                ],
+                createdAt: new Date(),
+                attachments: [],
+                chatId: id,
+              },
+            ],
+          });
+
+          if (titlePromise) {
+            const title = await titlePromise;
+            dataStream.write({ type: "data-chat-title", data: title });
+            updateChatTitleById({ chatId: id, title });
+          }
+
+          dataStream.write({ type: "finish" });
+        },
+      });
+
+      return createUIMessageStreamResponse({
+        stream,
+        async consumeSseStream({ stream: sseStream }) {
+          if (!process.env.REDIS_URL) {
+            return;
+          }
+          try {
+            const streamContext = getStreamContext();
+            if (streamContext) {
+              const streamId = generateId();
+              await createStreamId({ streamId, chatId: id });
+              await streamContext.createNewResumableStream(
+                streamId,
+                () => sseStream
+              );
+            }
+          } catch (_) {
+            // ignore redis errors
+          }
+        },
+      });
+    }
+
     const isReasoningModel =
       selectedChatModel.includes("reasoning") ||
       selectedChatModel.includes("thinking");
-
-    const modelMessages = await convertToModelMessages(uiMessages);
 
     const stream = createUIMessageStream({
       originalMessages: isToolApprovalFlow ? uiMessages : undefined,
@@ -229,7 +404,7 @@ export async function POST(request: Request) {
         if (
           error instanceof Error &&
           error.message?.includes(
-            "AI Gateway requires a valid credit card on file to service requests",
+            "AI Gateway requires a valid credit card on file to service requests"
           )
         ) {
           return "AI Gateway requires a valid credit card on file to service requests. Please visit https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai%3Fmodal%3Dadd-credit-card to add a card and unlock your free credits.";

@@ -8,6 +8,22 @@ import type { updateDocument } from "./ai/tools/update-document";
 import type { Suggestion } from "./db/schema";
 
 export type DataPart = { type: "append-message"; message: string };
+export type ResponseMode = "single" | "quad";
+export type QuadVariantId = "A" | "B" | "C" | "D";
+export type QuadResponseVariant = {
+  id: QuadVariantId;
+  modelId: string;
+  text: string;
+  latencyMs: number;
+  status: "streaming" | "done" | "error";
+  error?: string;
+};
+export type QuadResponsesData = {
+  mode: "quad";
+  promptMessageId: string;
+  variants: QuadResponseVariant[];
+  isFinal?: boolean;
+};
 
 export const messageMetadataSchema = z.object({
   createdAt: z.string(),
@@ -42,6 +58,7 @@ export type CustomUIDataTypes = {
   clear: null;
   finish: null;
   "chat-title": string;
+  "quad-responses": QuadResponsesData;
 };
 
 export type ChatMessage = UIMessage<

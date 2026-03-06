@@ -527,6 +527,5 @@ export const Artifact = memo(PureArtifact, (prevProps, nextProps) => {
   if (prevProps.selectedVisibilityType !== nextProps.selectedVisibilityType) {
     return false;
   }
-
   return true;
 });

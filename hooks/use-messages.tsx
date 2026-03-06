@@ -8,6 +8,8 @@ export function useMessages({
 }: {
   status: UseChatHelpers<ChatMessage>["status"];
 }) {
+  const autoScrollEnabled = status === "submitted" || status === "streaming";
+
   const {
     containerRef,
     endRef,
@@ -15,7 +17,7 @@ export function useMessages({
     scrollToBottom,
     onViewportEnter,
     onViewportLeave,
-  } = useScrollToBottom();
+  } = useScrollToBottom({ autoScrollEnabled });
 
   const [hasSentMessage, setHasSentMessage] = useState(false);
 
