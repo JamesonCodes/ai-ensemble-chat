@@ -280,8 +280,13 @@ const PurePreviewMessage = ({
                       const modelLabel =
                         chatModels.find((model) => model.id === variant.modelId)
                           ?.name ?? variant.modelId;
+                      const variantStatus =
+                        variant.status ??
+                        (variant.error ? "error" : ("done" as const));
                       const isSelectedWinner =
                         selectedModelId === variant.modelId;
+                      const canSelectWinner =
+                        variantStatus === "done" && !variant.error;
 
                       return (
                         <div
@@ -297,7 +302,12 @@ const PurePreviewMessage = ({
                             <div className="font-semibold text-sm">
                               {variant.id}: {modelLabel}
                             </div>
-                            {variant.error && (
+                            {variantStatus === "streaming" && (
+                              <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground text-xs">
+                                Streaming
+                              </span>
+                            )}
+                            {variantStatus === "error" && (
                               <span className="rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-700 text-xs dark:bg-red-900/40 dark:text-red-300">
                                 Failed
                               </span>
@@ -308,14 +318,18 @@ const PurePreviewMessage = ({
                             <Response>
                               {variant.text.trim().length > 0
                                 ? sanitizeText(variant.text)
-                                : (variant.error ?? "No output returned.")}
+                                : variantStatus === "streaming"
+                                  ? "Generating..."
+                                  : (variant.error ?? "No output returned.")}
                             </Response>
                           </MessageContent>
 
                           <div className="mt-3 text-muted-foreground text-xs">
-                            {variant.error
-                              ? variant.error
-                              : `${variant.latencyMs}ms`}
+                            {variantStatus === "streaming"
+                              ? "Streaming..."
+                              : variant.error
+                                ? variant.error
+                                : `${variant.latencyMs}ms`}
                           </div>
 
                           {onSelectWinnerModel && (
@@ -327,10 +341,10 @@ const PurePreviewMessage = ({
                                   isSelectedWinner
                                     ? "border-primary bg-primary text-primary-foreground"
                                     : "border-input hover:bg-muted",
-                                  variant.error &&
+                                  !canSelectWinner &&
                                     "cursor-not-allowed opacity-50"
                                 )}
-                                disabled={Boolean(variant.error)}
+                                disabled={!canSelectWinner}
                                 onClick={() =>
                                   onSelectWinnerModel(
                                     variant.modelId,

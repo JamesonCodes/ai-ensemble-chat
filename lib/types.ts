@@ -15,12 +15,14 @@ export type QuadResponseVariant = {
   modelId: string;
   text: string;
   latencyMs: number;
+  status: "streaming" | "done" | "error";
   error?: string;
 };
 export type QuadResponsesData = {
   mode: "quad";
   promptMessageId: string;
   variants: QuadResponseVariant[];
+  isFinal?: boolean;
 };
 
 export const messageMetadataSchema = z.object({

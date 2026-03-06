@@ -4,7 +4,6 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   generateId,
-  generateText,
   stepCountIs,
   streamText,
 } from "ai";
@@ -62,6 +61,16 @@ function normalizeQuadError(error: unknown): string {
   }
 
   return "Generation failed";
+}
+
+function createInitialQuadVariants(): QuadResponseVariant[] {
+  return QUAD_MODE_MODEL_IDS.map((modelId, index) => ({
+    id: (["A", "B", "C", "D"] as const)[index],
+    modelId,
+    text: "",
+    latencyMs: 0,
+    status: "streaming",
+  }));
 }
 
 export async function POST(request: Request) {
@@ -163,79 +172,115 @@ export async function POST(request: Request) {
     const modelMessages = await convertToModelMessages(uiMessages);
 
     if (effectiveResponseMode === "quad") {
-      const variantIds: QuadVariantId[] = ["A", "B", "C", "D"];
-
-      const variantSettledResults = await Promise.allSettled(
-        QUAD_MODE_MODEL_IDS.map(async (modelId, index) => {
-          const startTime = Date.now();
-          const result = await generateText({
-            model: getLanguageModel(modelId),
-            system: systemPrompt({ selectedChatModel: modelId, requestHints }),
-            messages: modelMessages,
-            experimental_telemetry: {
-              isEnabled: isProductionEnvironment,
-              functionId: `generate-text-quad-${index}`,
-            },
-          });
-
-          return {
-            id: variantIds[index],
-            modelId,
-            text: result.text,
-            latencyMs: Date.now() - startTime,
-          } satisfies Omit<QuadResponseVariant, "error">;
-        })
-      );
-
-      const variants: QuadResponseVariant[] = variantSettledResults.map(
-        (settledResult, index) => {
-          if (settledResult.status === "fulfilled") {
-            return settledResult.value;
-          }
-
-          return {
-            id: variantIds[index],
-            modelId: QUAD_MODE_MODEL_IDS[index],
-            text: "",
-            latencyMs: 0,
-            error: normalizeQuadError(settledResult.reason),
-          };
-        }
-      );
-
       const promptMessageId = message?.id ?? generateUUID();
       const assistantMessageId = generateUUID();
-      const assistantMessageParts = [
-        {
-          type: "data-quad-responses" as const,
-          data: {
-            mode: "quad" as const,
-            promptMessageId,
-            variants,
-          },
-        },
-      ];
-
-      await saveMessages({
-        messages: [
-          {
-            id: assistantMessageId,
-            role: "assistant",
-            parts: assistantMessageParts,
-            createdAt: new Date(),
-            attachments: [],
-            chatId: id,
-          },
-        ],
-      });
+      const quadPartId = `quad-${assistantMessageId}`;
 
       const stream = createUIMessageStream({
         execute: async ({ writer: dataStream }) => {
+          let variants = createInitialQuadVariants();
+          const writeQuadUpdate = (isFinal = false) => {
+            dataStream.write({
+              type: "data-quad-responses",
+              id: quadPartId,
+              data: {
+                mode: "quad",
+                promptMessageId,
+                variants,
+                isFinal,
+              },
+            });
+          };
+
           dataStream.write({
             type: "start",
             messageId: assistantMessageId,
           });
-          dataStream.write(assistantMessageParts[0]);
+          writeQuadUpdate();
+
+          const variantPromises = QUAD_MODE_MODEL_IDS.map(
+            async (modelId, index) => {
+              const variantId: QuadVariantId = (["A", "B", "C", "D"] as const)[
+                index
+              ];
+              const startedAt = Date.now();
+
+              try {
+                const result = streamText({
+                  model: getLanguageModel(modelId),
+                  system: systemPrompt({
+                    selectedChatModel: modelId,
+                    requestHints,
+                  }),
+                  messages: modelMessages,
+                  experimental_activeTools: [],
+                  experimental_telemetry: {
+                    isEnabled: isProductionEnvironment,
+                    functionId: `stream-text-quad-${index}`,
+                  },
+                });
+
+                for await (const delta of result.textStream) {
+                  variants = variants.map((variant) =>
+                    variant.id === variantId
+                      ? { ...variant, text: variant.text + delta }
+                      : variant
+                  );
+                  writeQuadUpdate();
+                }
+
+                variants = variants.map((variant) =>
+                  variant.id === variantId
+                    ? {
+                        ...variant,
+                        status: "done",
+                        latencyMs: Date.now() - startedAt,
+                      }
+                    : variant
+                );
+                writeQuadUpdate();
+              } catch (error) {
+                variants = variants.map((variant) =>
+                  variant.id === variantId
+                    ? {
+                        ...variant,
+                        status: "error",
+                        latencyMs: Date.now() - startedAt,
+                        error: normalizeQuadError(error),
+                      }
+                    : variant
+                );
+                writeQuadUpdate();
+              }
+            }
+          );
+
+          await Promise.all(variantPromises);
+          writeQuadUpdate(true);
+
+          await saveMessages({
+            messages: [
+              {
+                id: assistantMessageId,
+                role: "assistant",
+                parts: [
+                  {
+                    type: "data-quad-responses" as const,
+                    id: quadPartId,
+                    data: {
+                      mode: "quad" as const,
+                      promptMessageId,
+                      variants,
+                      isFinal: true,
+                    },
+                  },
+                ],
+                createdAt: new Date(),
+                attachments: [],
+                chatId: id,
+              },
+            ],
+          });
 
           if (titlePromise) {
             const title = await titlePromise;
