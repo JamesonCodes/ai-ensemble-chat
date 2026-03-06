@@ -1,10 +1,10 @@
 // Curated list of top models from Vercel AI Gateway
 export const DEFAULT_CHAT_MODEL = "openai/gpt-4.1-mini";
 export const QUAD_MODE_MODEL_IDS = [
-  "anthropic/claude-haiku-4.5",
-  "openai/gpt-4.1-mini",
-  "google/gemini-2.5-flash-lite",
+  "openai/gpt-5.4",
+  "google/gemini-3.1-flash-lite-preview",
   "xai/grok-4.1-fast-non-reasoning",
+  "anthropic/claude-sonnet-4.6",
 ] as const;
 
 export type ChatModel = {
@@ -54,6 +54,12 @@ export const chatModels: ChatModel[] = [
     description: "Fast and cost-effective for simple tasks",
   },
   // Google
+  {
+    id: "google/gemini-4.1-flash-lite",
+    name: "Gemini 4.1 Flash Lite",
+    provider: "google",
+    description: "Fast lightweight Gemini 4.1 model",
+  },
   {
     id: "google/gemini-3.1-flash-lite-preview",
     name: "Gemini 3.1 Flash Lite",
