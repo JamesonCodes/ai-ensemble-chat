@@ -17,8 +17,8 @@ https://github.com/vercel/ai-chatbot
 ## Highlights
 
 - Single-response chat mode
-- Quad-response mode (4 model outputs from one prompt)
-- Winner selection (`Use for Next`) to route the next prompt to the preferred model
+- Quad-response mode with live per-card streaming (4 model outputs from one prompt)
+- Winner selection (`Use for Next`) to route the next prompt to the preferred model and switch back to single mode
 - Header view-mode toggle (`single` / `quad`) with tooltips
 - Smart scrolling behavior:
   - Quad finishes anchored at top cards
@@ -122,14 +122,14 @@ Open: `http://localhost:3000`
 
 - Use the header toggle:
   - `single`: one assistant response
-  - `quad`: four assistant candidates
+  - `quad`: four assistant candidates streamed live per card
 
 ### Quad winner flow
 
 1. Send a prompt in Quad mode
 2. Compare 4 responses
 3. Click `Use for Next` on the best one
-4. That model becomes active for the next prompt
+4. The selected model becomes active and mode switches to `single` for the next prompt
 
 ### Model selection
 
