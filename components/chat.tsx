@@ -217,6 +217,12 @@ export function Chat({
     setCurrentModelId(modelId);
     setCookie("chat-model", modelId);
 
+    if (responseModeRef.current === "quad") {
+      responseModeRef.current = "single";
+      setResponseMode("single");
+      setCookie("chat-response-mode", "single");
+    }
+
     const modelLabel =
       chatModels.find((model) => model.id === modelId)?.name ?? modelId;
 
