@@ -81,7 +81,10 @@ export function Chat({
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
   const [responseMode, setResponseMode] = useLocalStorage<ResponseMode>(
     "chat-response-mode",
-    "single"
+    "single",
+    {
+      initializeWithValue: false,
+    }
   );
   const currentModelIdRef = useRef(currentModelId);
   const responseModeRef = useRef(responseMode);
