@@ -30,6 +30,12 @@ export const chatModels: ChatModel[] = [
   },
   // OpenAI
   {
+    id: "openai/gpt-5.4",
+    name: "GPT-5.4",
+    provider: "openai",
+    description: "Latest OpenAI flagship model",
+  },
+  {
     id: "openai/gpt-5.3-chat",
     name: "GPT-5.3 Chat",
     provider: "openai",
